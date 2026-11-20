@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VETORBIT Mission Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --obsidian: #030712;
+            --nebula: #071024;
+            --glass-bg: rgba(255, 255, 255, 0.06);
+            --glass-bg-strong: rgba(255, 255, 255, 0.10);
+            --glass-border: rgba(255, 255, 255, 0.16);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+            --text-primary: #F8FAFC;
+            --text-ice: #E0F2FE;
+            --emerald-400: #34d399;
+            --emerald-500: #10B981;
+            --emerald-900: #064e3b;
+            --amber-400: #fbbf24;
+            --amber-500: #F59E0B;
+            --amber-900: #78350f;
+            --crimson-400: #f87171;
+            --crimson-500: #EF4444;
+            --crimson-900: #7f1d1d;
+            --cyan-400: #22d3ee;
+            --cyan-500: #06b6d4;
+            --cyan-900: #164e63;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --white: #ffffff;
+        }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background:
+                radial-gradient(ellipse 70% 60% at 22% 18%, rgba(7, 16, 36, 0.95) 0%, rgba(3, 7, 18, 0) 68%),
+                radial-gradient(ellipse 60% 55% at 82% 78%, rgba(7, 16, 36, 0.85) 0%, rgba(3, 7, 18, 0) 70%),
+                radial-gradient(circle at 50% 50%, #071024 0%, #030712 55%, #010409 100%);
+            color: var(--text-primary);
+            line-height: 1.4;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .font-display { font-family: 'Space Grotesk', sans-serif; }
+
+        /* 3-Column Cockpit Grid - fits in 100vh */
+        .cockpit-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 1.2fr 1fr;
+            height: calc(100vh - 20px);
+            gap: 10px;
+            padding: 10px;
+        }
+        @media (max-width: 1400px) {
+            .cockpit-grid { grid-template-columns: 1.1fr 1.2fr 300px; gap: 8px; padding: 8px; }
+        }
+        @media (max-width: 1200px) {
+            .cockpit-grid { grid-template-columns: 1fr 1fr 280px; gap: 6px; padding: 6px; }
+        }
+        @media (max-width: 900px) {
+            .cockpit-grid { grid-template-columns: 1fr; grid-template-rows: 40vh 35vh 25vh; gap: 6px; padding: 6px; height: auto; min-height: 100vh; }
+        }
+
+        .cockpit-panel {
+            display: flex;
+            flex-direction: column;
+            background: var(--glass-bg);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            box-shadow: var(--glass-shadow);
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 7px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+            flex-shrink: 0;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0));
+        }
+        .panel-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; display: flex; align-items: center; gap: 7px; color: var(--text-primary); }
+        .panel-title .dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
+
+        .panel-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+
+        /* Radar Canvas Container */
+        .radar-container { position: relative; flex: 1; min-height: 0; }
+        #orbital-canvas { width: 100%; height: 100%; display: block; }
+
+        /* Overlay badges */
+        .overlay-badge {
+            position: absolute;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid;
+            z-index: 10;
+            white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+        }
+        .badge-top-left { top: 8px; left: 8px; }
+        .badge-top-right { top: 8px; right: 8px; }
+        .badge-bottom-left { bottom: 8px; left: 8px; }
+        .badge-bottom-right { bottom: 8px; right: 8px; }
+        .badge-eclipse { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.55); color: var(--amber-400); }
+        .badge-sunlit { background: rgba(224, 242, 254, 0.12); border-color: rgba(224, 242, 254, 0.42); color: var(--text-ice); }
+        .badge-warning { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.55); color: var(--crimson-400); }
+        .badge-info { background: rgba(255, 255, 255, 0.07); border-color: var(--glass-border); color: var(--text-ice); }
+        .badge-live { background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.55); color: var(--emerald-400); }
+
+        /* Legend */
+        .radar-legend { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; font-size: 9px; color: var(--text-ice); opacity: 0.7; pointer-events: none; }
+        .radar-legend span { display: flex; align-items: center; gap: 4px; }
+
+        /* Mini Telemetry Cards (under radar) */
+        .mini-telemetry { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 8px; border-top: 1px solid rgba(255, 255, 255, 0.10); flex-shrink: 0; background: rgba(3, 7, 18, 0.35); }
+        @media (max-width: 1200px) { .mini-telemetry { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 900px) { .mini-telemetry { grid-template-columns: repeat(4, 1fr); } }
+        .mini-card { background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; padding: 7px 8px; text-align: center; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+        .mini-label { font-size: 9px; color: var(--text-ice); opacity: 0.65; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px; }
+        .mini-value { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; color: var(--text-primary); }
+        .mini-value.warn { color: var(--crimson-400); }
+        .mini-value.caution { color: var(--amber-400); }
+        .mini-value.nominal { color: var(--emerald-400); }
+        .mini-value.info { color: var(--cyan-400); }
+
+        /* Blackbox Audit Log */
+        .audit-log-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .audit-log-list { flex: 1; overflow-y: auto; padding: 8px; font-size: 10px; line-height: 1.5; }
+        .audit-entry { padding: 6px 8px; margin-bottom: 6px; border-radius: 7px; border-left: 3px solid; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); animation: slide-in 0.2s ease; }
+        @keyframes slide-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+        .audit-entry.approved { border-color: var(--emerald-500); }
+        .audit-entry.vetoed { border-color: var(--crimson-500); }
+        .audit-entry.event { border-color: var(--cyan-400); }
+        .audit-entry.auto .audit-cmd { color: var(--cyan-400); }
+        .audit-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 3px; }
+        .audit-time { font-size: 9px; color: var(--text-ice); opacity: 0.6; }
+        .audit-status { font-size: 9px; font-weight: 600; }
+        .audit-status.ok { color: var(--emerald-400); }
+        .audit-status.no { color: var(--crimson-400); }
+        .audit-status.ev { color: var(--cyan-400); }
+        .audit-mid { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-bottom: 3px; }
+        .audit-cmd { font-size: 10px; font-weight: 500; color: var(--text-primary); }
+        .audit-veto { font-size: 8px; padding: 1px 5px; border-radius: 4px; background: rgba(239, 68, 68, 0.2); color: var(--crimson-400); border: 1px solid rgba(239, 68, 68, 0.45); font-weight: 600; }
+        .audit-auto { font-size: 8px; padding: 1px 5px; border-radius: 4px; background: rgba(224, 242, 254, 0.12); color: var(--text-ice); border: 1px solid rgba(224, 242, 254, 0.35); font-weight: 600; }
+        .audit-reason { font-size: 9px; color: var(--text-ice); opacity: 0.72; }
+
+        /* Right Panel Controls */
+        .control-section { padding: 9px 11px; border-bottom: 1px solid rgba(255, 255, 255, 0.09); flex-shrink: 0; }
+        .control-section:last-child { border-bottom: none; }
+        .control-title { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-ice); opacity: 0.65; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 7px; }
+
+        /* Toggle Switch */
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .toggle-switch { position: relative; width: 48px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.10); border-radius: 12px; transition: 0.2s; border: 1px solid var(--glass-border); }
+        .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 2px; background: var(--text-ice); border-radius: 50%; transition: 0.2s; }
+        .toggle-switch input:checked + .toggle-slider { background: rgba(16, 185, 129, 0.35); border-color: rgba(16, 185, 129, 0.65); }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(24px); background: var(--emerald-400); box-shadow: 0 0 10px rgba(16, 185, 129, 0.8); }
+        .toggle-label { font-size: 10px; font-weight: 500; color: var(--text-ice); }
+
+        /* Buttons */
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 9px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            background: var(--glass-bg-strong);
+            color: var(--text-primary);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.12s ease;
+            text-align: center;
+        }
+        .btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+        .btn:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(224, 242, 254, 0.65); box-shadow: 0 0 16px rgba(224, 242, 254, 0.22); }
+        .btn:active { transform: translateY(1px); }
+        .btn:disabled { opacity: 0.45; cursor: progress; }
+        .btn-crimson { color: var(--crimson-400); border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.14); }
+        .btn-crimson:hover { background: rgba(239, 68, 68, 0.24); border-color: rgba(239, 68, 68, 0.85); box-shadow: 0 0 18px rgba(239, 68, 68, 0.35); }
+        .btn-amber { color: var(--amber-400); border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.13); }
+        .btn-amber:hover { background: rgba(245, 158, 11, 0.24); border-color: rgba(245, 158, 11, 0.85); box-shadow: 0 0 18px rgba(245, 158, 11, 0.32); }
+        .btn-cyan { color: var(--text-ice); border-color: rgba(224, 242, 254, 0.38); background: rgba(224, 242, 254, 0.10); }
+        .btn-cyan:hover { background: rgba(224, 242, 254, 0.20); border-color: rgba(224, 242, 254, 0.75); box-shadow: 0 0 18px rgba(224, 242, 254, 0.28); }
+        .btn-emerald { color: var(--emerald-400); border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.14); }
+        .btn-emerald:hover { background: rgba(16, 185, 129, 0.24); border-color: rgba(16, 185, 129, 0.85); box-shadow: 0 0 18px rgba(16, 185, 129, 0.35); }
+        .btn-ghost { color: var(--text-ice); border-color: var(--glass-border); }
+        .btn-full { grid-column: span 2; }
+        .cmd-btn { text-align: left; padding: 6px 9px; font-size: 10px; }
+        .cmd-btn-content { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .cmd-btn-icon { display: flex; align-items: center; gap: 5px; }
+        .cmd-btn-hint { font-size: 8px; opacity: 0.6; font-weight: 400; }
+
+        /* Connection Status */
+        .conn-status { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text-ice); opacity: 0.8; }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; }
+        .status-connected { background: var(--emerald-500); box-shadow: 0 0 8px var(--emerald-500); animation: pulse 2s ease-in-out infinite; }
+        .status-disconnected { background: var(--crimson-500); box-shadow: 0 0 8px var(--crimson-500); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* Command Result Toast */
+        .toast { display: none; position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 100; background: rgba(255, 255, 255, 0.08); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid var(--glass-border); border-radius: 10px; padding: 11px 15px; max-width: 90vw; box-shadow: var(--glass-shadow); }
+        .toast.show { display: flex; align-items: center; gap: 11px; animation: toast-in 0.2s ease; }
+        @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        .toast.ok { border-color: rgba(16, 185, 129, 0.55); }
+        .toast.err { border-color: rgba(239, 68, 68, 0.55); }
+        .toast.info { border-color: rgba(224, 242, 254, 0.5); }
+        .toast-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: rgba(255, 255, 255, 0.10); }
+        .toast.ok .toast-icon { color: var(--emerald-400); }
+        .toast.err .toast-icon { color: var(--crimson-400); }
+        .toast.info .toast-icon { color: var(--text-ice); }
+        .toast-text { font-family: 'JetBrains Mono', monospace; font-size: 10px; line-height: 1.35; }
+        .toast-status { font-weight: 600; color: var(--text-primary); }
+        .toast.ok .toast-status { color: var(--emerald-400); }
+        .toast.err .toast-status { color: var(--crimson-400); }
+        .toast.info .toast-status { color: var(--text-ice); }
+        .toast-reason { color: var(--text-ice); }
+        .toast-details { color: var(--text-ice); opacity: 0.6; font-size: 9px; }
+
+        /* Scanline overlay */
+        .scanline::after { content: ''; position: fixed; inset: 0; background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px); pointer-events: none; z-index: 9999; opacity: 0.25; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(224, 242, 254, 0.4); }
+
+        @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+    </style>
+</head>
+<body class="scanline">
+    <div class="cockpit-grid">
+        <!-- LEFT COLUMN: Orbital Radar + Mini Telemetry -->
+        <div class="cockpit-panel">
+            <div class="panel-header">
+                <h2 class="panel-title"><span class="dot" style="background:#22d3ee;color:#22d3ee"></span>ORBITAL RADAR</h2>
+                <div class="conn-status">
+                    <span id="conn-dot" class="status-dot status-disconnected"></span>
+                    <span id="conn-status">DISCONNECTED</span>
+                </div>
+            </div>
+            <div class="panel-content">
+                <div class="radar-container">
+                    <canvas id="orbital-canvas"></canvas>
+                    <div id="badge-eclipse" class="overlay-badge badge-top-left badge-sunlit">SUNLIT</div>
+                    <div id="badge-phase" class="overlay-badge badge-top-right badge-info">PHASE: 0.0°</div>
+                    <div id="badge-alt" class="overlay-badge badge-bottom-left badge-info">ALT: 550 km</div>
+                    <div id="badge-pointing" class="overlay-badge badge-bottom-right badge-info">POINTING: NADIR</div>
+                    <div id="badge-live" class="overlay-badge badge-live" style="top:8px;left:50%;transform:translateX(-50%);display:none;">LIVE ISS</div>
+                    <div id="badge-tca" class="overlay-badge badge-warning" style="top: 50%; right: 8px; transform: translateY(-50%); display:none;">TCA: <span id="tca-value">--</span>s</div>
+                    <div class="radar-legend">
+                        <span><span style="width:8px;height:8px;border-radius:50%;background:#22d3ee"></span>ORBIT</span>
+                        <span><span style="width:8px;height:8px;border-radius:50%;background:#6b7280"></span>ECLIPSE</span>
+                        <span><span style="width:10px;height:10px;border-radius:50%;background:#34d399;box-shadow:0 0 6px #10B981"></span>SC</span>
+                        <span><span style="width:10px;height:10px;border-radius:50%;background:#f87171;box-shadow:0 0 8px #EF4444"></span>DEBRIS</span>
+                    </div>
+                </div>
+                <div class="mini-telemetry">
+                    <div class="mini-card">
+                        <div class="mini-label">BATTERY SoC</div>
+                        <div id="mini-battery" class="mini-value nominal">100%</div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-label">BUS TEMP</div>
+                        <div id="mini-temp" class="mini-value info">20°C</div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-label">PROPELLANT</div>
+                        <div id="mini-propellant" class="mini-value info">100 kg</div>
+                    </div>
+                    <div class="mini-card">
+                        <div class="mini-label">SUN ANGLE</div>
+                        <div id="mini-sun" class="mini-value nominal">90°</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MIDDLE COLUMN: Blackbox Audit Stream -->
+        <div class="cockpit-panel">
+            <div class="panel-header">
+                <h2 class="panel-title"><span class="dot" style="background:#fbbf24;color:#fbbf24"></span>BLACKBOX AUDIT</h2>
+                <span id="log-count" style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#E0F2FE;opacity:0.6">0 entries</span>
+            </div>
+            <div class="panel-content">
+                <div class="audit-log-container">
+                    <div id="audit-log" class="audit-log-list">
+                        <div style="text-align:center;color:#E0F2FE;opacity:0.45;padding:20px;font-size:10px;">Awaiting decisions...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Controls -->
+        <div class="cockpit-panel">
+            <div class="panel-header">
+                <h2 class="panel-title"><span class="dot" style="background:#f87171;color:#f87171"></span>COMMAND & CONTROL</h2>
+            </div>
+            <div class="panel-content" style="overflow-y:auto;">
+                <!-- Auto Planner Toggle -->
+                <div class="control-section">
+                    <div class="toggle-row">
+                        <span class="control-title">AUTONOMOUS PLANNER</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="auto-planner-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="auto-planner-status" class="toggle-label" style="color:#9ca3af;font-size:10px;">DISABLED</span>
+                    </div>
+                </div>
+
+                <!-- Scenario Injection -->
+                <div class="control-section">
+                    <div class="control-title">SCENARIO INJECTION</div>
+                    <div class="btn-grid">
+                        <button id="sc-debris" class="btn btn-crimson" title="Inject COSMOS-2251-FRAG at 1.2km, Pc=3.4e-4, TCA=420s">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            DEBRIS THREAT
+                        </button>
+                        <button id="sc-eclipse" class="btn btn-amber" title="Orbital phase 130° (eclipse), Battery 24%">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                            ECLIPSE LOW-BATT
+                        </button>
+                        <button id="sc-sun-glare" class="btn btn-amber" title="Sun angle 12° (violates 25° exclusion)">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            SUN GLARE
+                        </button>
+                        <button id="sc-reset" class="btn btn-ghost" title="Reset to nominal orbital parameters">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            RESET NOMINAL
+                        </button>
+                        <button id="sc-live-iss" class="btn btn-cyan btn-full" title="Fetch real-time ISS telemetry from wheretheiss.at and sync orbital phase, altitude and illumination">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18.75a6 6 0 006-6c0-1.5-.5-2.9-1.35-4.05M12 18.75a6 6 0 01-6-6c0-1.5.5-2.9 1.35-4.05M12 18.75a6 6 0 006-6c0-1.5-.5-2.9-1.35-4.05m-9.3 2.1A9 9 0 0112 5.25a9 9 0 016.95 3.3M12 18.75a6 6 0 01-6-6c0-1.5.5-2.9 1.35-4.05m12.3 6.3A9 9 0 0112 18.75a9 9 0 01-3.3-.62"/></svg>
+                            SYNC LIVE ISS ORBIT
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Command Dispatcher -->
+                <div class="control-section">
+                    <div class="control-title">MANUAL COMMANDS</div>
+                    <div style="display:flex;flex-direction:column;gap:5px;">
+                        <button class="btn btn-cyan cmd-btn" data-cmd='{"cmd_type":"CAPTURE_PAYLOAD","params":{"data_mb":100}}' title="Capture 100MB payload data">
+                            <span class="cmd-btn-content">
+                                <span class="cmd-btn-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> CAPTURE PAYLOAD</span>
+                                <span class="cmd-btn-hint">+100MB</span>
+                            </span>
+                        </button>
+                        <button class="btn btn-cyan cmd-btn" data-cmd='{"cmd_type":"SLEW_TO_TARGET","params":{"target_sun_angle_deg":45}}' title="Slew to 45° sun angle">
+                            <span class="cmd-btn-content">
+                                <span class="cmd-btn-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.761 3.55a.5.5 0 00-.722.035l-4.5 9a.5.5 0 00.362.931h1.148l1.562 5.7a.5.5 0 00.918.046l4.542-5.7H20a.5.5 0 00.362-.931l-4.5-9a.5.5 0 00-.722-.035h-1.148l-1.562 5.7H4a.5.5 0 00-.362.931l4.542 5.7h1.148l1.562-5.7H8.761z"/></svg> SLEW TO TARGET</span>
+                                <span class="cmd-btn-hint">45°</span>
+                            </span>
+                        </button>
+                        <button class="btn btn-cyan cmd-btn" data-cmd='{"cmd_type":"DOWNLINK_DATA","params":{"rate_mb_per_s":10}}' title="Downlink at 10 MB/s">
+                            <span class="cmd-btn-content">
+                                <span class="cmd-btn-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> DOWNLINK DATA</span>
+                                <span class="cmd-btn-hint">10 MB/s</span>
+                            </span>
+                        </button>
+                        <button class="btn btn-emerald cmd-btn" data-cmd='{"cmd_type":"ORBIT_AVOIDANCE_BURN","params":{"delta_v_m_s":0.5}}' title="Execute avoidance burn (0.5 m/s Δv)">
+                            <span class="cmd-btn-content">
+                                <span class="cmd-btn-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> AVOIDANCE BURN</span>
+                                <span class="cmd-btn-hint">Δv 0.5 m/s</span>
+                            </span>
+                        </button>
+                        <button class="btn btn-crimson cmd-btn" data-cmd='{"cmd_type":"ENTER_SAFE_MODE","params":{}}' title="Emergency safe mode override">
+                            <span class="cmd-btn-content">
+                                <span class="cmd-btn-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg> ENTER SAFE MODE</span>
+                                <span class="cmd-btn-hint">OVERRIDE</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast" role="alert" aria-live="polite">
+        <div id="toast-icon" class="toast-icon"></div>
+        <div class="toast-text">
+            <div id="toast-status" class="toast-status"></div>
+            <div id="toast-reason" class="toast-reason"></div>
+            <div id="toast-details" class="toast-details"></div>
+        </div>
+    </div>
+
+    <script>
+        // ========== STATE ==========
+        const state = {
+            ws: null,
+            connected: false,
+            spacecraft: null,
+            logs: [],
+            stats: { total_commands: 0, approved_count: 0, vetoed_count: 0, veto_breakdown: {} },
+            canvas: null,
+            ctx: null,
+            animationId: null,
+            debrisActive: false,
+            thrusterActive: false,
+            thrusterDirection: 0,
+            autoPlannerEnabled: false,
+            particles: [],
+            liveIss: null,
+            lastFrame: 0,
+        };
+
+        const EARTH_RADIUS_KM = 6371.0;
+        const MU_EARTH_KM3_S2 = 398600.4418;
+        const ECLIPSE_START_DEG = 115.0;
+        const ECLIPSE_END_DEG = 245.0;
+
+        // ========== DOM ELEMENTS ==========
+        const els = {
+            connDot: document.getElementById('conn-dot'),
+            connStatus: document.getElementById('conn-status'),
+            canvas: document.getElementById('orbital-canvas'),
+            badgeEclipse: document.getElementById('badge-eclipse'),
+            badgePhase: document.getElementById('badge-phase'),
+            badgeAlt: document.getElementById('badge-alt'),
+            badgePointing: document.getElementById('badge-pointing'),
+            badgeLive: document.getElementById('badge-live'),
+            badgeTCA: document.getElementById('badge-tca'),
+            tcaValue: document.getElementById('tca-value'),
+            miniBattery: document.getElementById('mini-battery'),
+            miniTemp: document.getElementById('mini-temp'),
+            miniPropellant: document.getElementById('mini-propellant'),
+            miniSun: document.getElementById('mini-sun'),
+            auditLog: document.getElementById('audit-log'),
+            logCount: document.getElementById('log-count'),
+            autoPlannerToggle: document.getElementById('auto-planner-toggle'),
+            autoPlannerStatus: document.getElementById('auto-planner-status'),
+            toast: document.getElementById('toast'),
+            toastIcon: document.getElementById('toast-icon'),
+            toastStatus: document.getElementById('toast-status'),
+            toastReason: document.getElementById('toast-reason'),
+            toastDetails: document.getElementById('toast-details'),
+        };
+
+        // ========== UTILITIES ==========
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+        function degToRad(d) { return d * Math.PI / 180; }
+        function pseudoRandom(seed) {
+            const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453123;
+            return x - Math.floor(x);
+        }
+        function orbitalVelocityKms(altitudeKm) {
+            const r = EARTH_RADIUS_KM + Math.max(altitudeKm, 100);
+            return Math.sqrt(MU_EARTH_KM3_S2 / r);
+        }
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        const STARS = Array.from({ length: 140 }, (_, i) => ({
+            x: pseudoRandom(i * 3.13 + 1),
+            y: pseudoRandom(i * 7.77 + 2),
+            s: 0.4 + pseudoRandom(i * 5.19 + 3) * 1.5,
+            p: pseudoRandom(i * 11.3 + 4) * Math.PI * 2,
+        }));
+
+        const CONTINENTS = [
+            { points: [[-0.52,-0.30],[-0.30,-0.46],[-0.06,-0.40],[0.02,-0.18],[-0.10,-0.02],[-0.26,0.06],[-0.30,0.24],[-0.48,0.26],[-0.62,0.06],[-0.60,-0.14]], scale: 1.0, tone: 0 },
+            { points: [[-0.22,0.10],[-0.02,0.16],[0.06,0.36],[-0.04,0.56],[-0.20,0.58],[-0.32,0.36],[-0.30,0.16]], scale: 0.9, tone: 1 },
+            { points: [[0.06,-0.34],[0.30,-0.44],[0.58,-0.30],[0.66,-0.06],[0.52,0.06],[0.30,0.02],[0.14,0.14],[0.02,-0.08]], scale: 1.0, tone: 2 },
+            { points: [[0.26,0.30],[0.44,0.30],[0.50,0.44],[0.36,0.52],[0.22,0.44]], scale: 0.72, tone: 3 },
+            { points: [[-0.14,0.72],[0.16,0.74],[0.40,0.66],[0.30,0.84],[0.00,0.90],[-0.30,0.84],[-0.36,0.70]], scale: 0.9, tone: 4 },
+        ];
+
+        const CLOUD_WISPS = [
+            { x: -0.24, y: -0.18, rx: 0.34, ry: 0.11, rot: 0.3 },
+            { x: 0.26, y: -0.26, rx: 0.28, ry: 0.09, rot: -0.5 },
+            { x: 0.14, y: 0.18, rx: 0.40, ry: 0.08, rot: 0.15 },
+            { x: -0.34, y: 0.32, rx: 0.24, ry: 0.07, rot: 0.9 },
+            { x: 0.44, y: 0.44, rx: 0.22, ry: 0.06, rot: -0.2 },
+        ];
+
+        const LAND_TONES = [
+            'rgba(27, 78, 60, 0.92)',
+            'rgba(34, 92, 66, 0.92)',
+            'rgba(22, 66, 52, 0.92)',
+            'rgba(45, 100, 72, 0.90)',
+            'rgba(215, 232, 245, 0.85)',
+        ];
+
+        function setConnectionStatus(connected) {
+            state.connected = connected;
+            els.connDot.className = 'status-dot ' + (connected ? 'status-connected' : 'status-disconnected');
+            els.connStatus.textContent = connected ? 'CONNECTED' : 'DISCONNECTED';
+        }
+
+        function showToast(kind, reason, details) {
+            els.toast.className = 'toast show ' + (kind === 'ok' ? 'ok' : kind === 'err' ? 'err' : 'info');
+            els.toastIcon.innerHTML = kind === 'ok'
+                ? '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>'
+                : kind === 'err'
+                ? '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>'
+                : '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>';
+            els.toastStatus.textContent = kind === 'ok' ? 'APPROVED' : kind === 'err' ? 'VETOED' : 'SYNCED';
+            els.toastReason.textContent = reason;
+            els.toastDetails.textContent = details || '';
+            clearTimeout(els.toast._timer);
+            els.toast._timer = setTimeout(() => { els.toast.classList.remove('show'); }, 4000);
+        }
+
+        // ========== CANVAS RENDERING ==========
+        function initCanvas() {
+            state.canvas = els.canvas;
+            state.ctx = state.canvas.getContext('2d');
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            renderLoop(performance.now());
+        }
+
+        function resizeCanvas() {
+            const rect = state.canvas.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            state.canvas.width = rect.width * dpr;
+            state.canvas.height = rect.height * dpr;
+            state.canvas.style.width = rect.width + 'px';
+            state.canvas.style.height = rect.height + 'px';
+            state.ctx.setTransform(1, 0, 0, 1, 0, 0);
+            state.ctx.scale(dpr, dpr);
+            state.canvasWidth = rect.width;
+            state.canvasHeight = rect.height;
+            state.centerX = rect.width / 2;
+            state.centerY = rect.height / 2;
+            state.orbitRadius = Math.min(rect.width, rect.height) * 0.38;
+        }
+
+        function renderLoop(now) {
+            const dt = state.lastFrame ? Math.min((now - state.lastFrame) / 1000, 0.1) : 0.016;
+            state.lastFrame = now;
+            drawOrbitalView(now / 1000, dt);
+            state.animationId = requestAnimationFrame(renderLoop);
+        }
+
+        function drawOrbitalView(t, dt) {
+            const ctx = state.ctx;
+            const { centerX, centerY, orbitRadius, canvasWidth, canvasHeight } = state;
+
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            drawSpaceBackdrop(ctx, canvasWidth, canvasHeight, t);
+
+            const sunAngle = state.spacecraft?.sun_angle_deg ?? 90;
+            const sunDir = degToRad(sunAngle - 90);
+            const sunX = centerX + Math.cos(sunDir) * (orbitRadius + 52);
+            const sunY = centerY + Math.sin(sunDir) * (orbitRadius + 52);
+
+            drawEclipseZone(ctx, centerX, centerY, orbitRadius);
+            drawOrbitRing(ctx, centerX, centerY, orbitRadius, t);
+
+            const earthRadius = orbitRadius * 0.55;
+            const inEclipse = !!state.spacecraft?.in_eclipse;
+            drawEarth(ctx, centerX, centerY, earthRadius, t, sunDir, inEclipse);
+
+            drawSun(ctx, sunX, sunY, t, sunAngle);
+            drawSunGlareCone(ctx, centerX, centerY, orbitRadius, sunAngle);
+
+            if (state.spacecraft) {
+                const phase = state.spacecraft.orbital_phase_deg;
+                const scAngle = degToRad(phase - 90);
+                const scX = centerX + Math.cos(scAngle) * orbitRadius;
+                const scY = centerY + Math.sin(scAngle) * orbitRadius;
+
+                drawAttitudeVector(ctx, scX, scY, scAngle);
+
+                if (state.thrusterActive) {
+                    spawnIonParticles(scX, scY, state.thrusterDirection, dt);
+                }
+                drawIonPlume(ctx, dt, t);
+
+                drawSpacecraft(ctx, scX, scY, scAngle + Math.PI / 2, t);
+                drawTelemetryCallout(ctx, scX, scY, scAngle);
+
+                if (state.debrisActive && state.spacecraft.tracked_debris?.length > 0) {
+                    const debris = state.spacecraft.tracked_debris[0];
+                    const debrisAngle = scAngle + Math.PI * 0.15;
+                    const debrisDist = orbitRadius * (1 - Math.min(debris.relative_distance_km / 10, 0.9));
+                    const debrisX = centerX + Math.cos(debrisAngle) * debrisDist;
+                    const debrisY = centerY + Math.sin(debrisAngle) * debrisDist;
+
+                    drawInterceptTrajectory(ctx, debrisX, debrisY, scX, scY, t);
+                    drawDebris(ctx, debrisX, debrisY, debris, debrisAngle, t);
+                }
+            }
+
+            drawPhaseMarkers(ctx, centerX, centerY, orbitRadius);
+        }
+
+        function drawSpaceBackdrop(ctx, w, h, t) {
+            const bg = ctx.createRadialGradient(w * 0.5, h * 0.5, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.75);
+            bg.addColorStop(0, 'rgba(7, 16, 36, 0.9)');
+            bg.addColorStop(0.55, 'rgba(3, 7, 18, 0.96)');
+            bg.addColorStop(1, 'rgba(1, 4, 9, 1)');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, w, h);
+
+            const nebulaA = ctx.createRadialGradient(w * 0.22, h * 0.18, 0, w * 0.22, h * 0.18, Math.max(w, h) * 0.55);
+            nebulaA.addColorStop(0, 'rgba(14, 32, 66, 0.35)');
+            nebulaA.addColorStop(1, 'rgba(7, 16, 36, 0)');
+            ctx.fillStyle = nebulaA;
+            ctx.fillRect(0, 0, w, h);
+
+            const nebulaB = ctx.createRadialGradient(w * 0.82, h * 0.8, 0, w * 0.82, h * 0.8, Math.max(w, h) * 0.5);
+            nebulaB.addColorStop(0, 'rgba(20, 42, 84, 0.28)');
+            nebulaB.addColorStop(1, 'rgba(7, 16, 36, 0)');
+            ctx.fillStyle = nebulaB;
+            ctx.fillRect(0, 0, w, h);
+
+            STARS.forEach((star, i) => {
+                const tw = 0.55 + 0.45 * Math.sin(t * 1.4 + star.p);
+                const alpha = tw * 0.75 * (0.4 + pseudoRandom(i * 2.71) * 0.6);
+                ctx.beginPath();
+                ctx.arc(star.x * w, star.y * h, star.s * (0.7 + tw * 0.5), 0, 2 * Math.PI);
+                ctx.fillStyle = `rgba(248, 250, 252, ${alpha.toFixed(3)})`;
+                ctx.fill();
+            });
+        }
+
+        function drawEclipseZone(ctx, cx, cy, r) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, degToRad(ECLIPSE_START_DEG - 90), degToRad(ECLIPSE_END_DEG - 90));
+            ctx.strokeStyle = 'rgba(107, 114, 128, 0.45)';
+            ctx.lineWidth = 13;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, degToRad(ECLIPSE_END_DEG - 90), degToRad(ECLIPSE_START_DEG - 90) + 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(224, 242, 254, 0.16)';
+            ctx.lineWidth = 13;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, r - 7, degToRad(ECLIPSE_START_DEG - 90), degToRad(ECLIPSE_END_DEG - 90));
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 7]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawOrbitRing(ctx, cx, cy, r, t) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.55)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([9, 6]);
+            ctx.lineDashOffset = -(t * 14) % 15;
+            ctx.shadowColor = 'rgba(34, 211, 238, 0.55)';
+            ctx.shadowBlur = 8;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawEarth(ctx, cx, cy, r, t, sunDir, inEclipse) {
+            const rotation = t * 0.055;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+            ctx.clip();
+
+            const ocean = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.05, cx, cy, r);
+            ocean.addColorStop(0, '#0A2540');
+            ocean.addColorStop(0.42, '#07203A');
+            ocean.addColorStop(0.78, '#04162B');
+            ocean.addColorStop(1, '#031022');
+            ctx.fillStyle = ocean;
+            ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+            drawGraticule(ctx, cx, cy, r, rotation);
+
+            CONTINENTS.forEach((land) => {
+                drawLandmass(ctx, cx, cy, r, land, rotation);
+            });
+
+            CLOUD_WISPS.forEach((wisp, i) => {
+                drawCloudWisp(ctx, cx, cy, r, wisp, rotation * 1.35 + i * 0.4);
+            });
+
+            drawTerminator(ctx, cx, cy, r, sunDir, inEclipse);
+
+            const sphereShade = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r * 1.25);
+            sphereShade.addColorStop(0, 'rgba(224, 242, 254, 0.14)');
+            sphereShade.addColorStop(0.55, 'rgba(0, 0, 0, 0)');
+            sphereShade.addColorStop(1, 'rgba(0, 0, 0, 0.55)');
+            ctx.fillStyle = sphereShade;
+            ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+
+            ctx.restore();
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, r + 4, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(125, 211, 252, 0.55)';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = 'rgba(125, 211, 252, 0.9)';
+            ctx.shadowBlur = 26;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r + 1, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(248, 250, 252, 0.55)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawGraticule(ctx, cx, cy, r, rotation) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(224, 242, 254, 0.12)';
+            ctx.lineWidth = 0.6;
+
+            for (let i = -60; i <= 60; i += 30) {
+                const lat = degToRad(i);
+                const ry = Math.abs(Math.cos(lat)) * r;
+                const y = cy - Math.sin(lat) * r;
+                ctx.beginPath();
+                ctx.ellipse(cx, y, r, ry, 0, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            for (let i = 0; i < 6; i++) {
+                const rx = Math.abs(Math.cos(degToRad(i * 30 + rotation * 20)));
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, Math.max(rx * r, 0.6), r, 0, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, r, r * 0.06, 0, 0, 2 * Math.PI);
+            ctx.strokeStyle = 'rgba(224, 242, 254, 0.2)';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawLandmass(ctx, cx, cy, r, land, rotation) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rotation);
+            ctx.scale(r * land.scale, r * land.scale);
+            ctx.beginPath();
+            const pts = land.points;
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 0; i < pts.length; i++) {
+                const cur = pts[i];
+                const next = pts[(i + 1) % pts.length];
+                const midX = (cur[0] + next[0]) / 2;
+                const midY = (cur[1] + next[1]) / 2;
+                ctx.quadraticCurveTo(cur[0], cur[1], midX, midY);
+            }
+            ctx.closePath();
+            ctx.fillStyle = LAND_TONES[land.tone];
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(224, 242, 254, 0.22)';
+            ctx.lineWidth = 1.5 / r;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawCloudWisp(ctx, cx, cy, r, wisp, rotation) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(rotation);
+            ctx.scale(r, r);
+            ctx.beginPath();
+            ctx.ellipse(wisp.x, wisp.y, wisp.rx, wisp.ry, wisp.rot, 0, 2 * Math.PI);
+            const cloud = ctx.createRadialGradient(wisp.x, wisp.y, 0, wisp.x, wisp.y, wisp.rx);
+            cloud.addColorStop(0, 'rgba(248, 250, 252, 0.30)');
+            cloud.addColorStop(0.6, 'rgba(224, 242, 254, 0.14)');
+            cloud.addColorStop(1, 'rgba(224, 242, 254, 0)');
+            ctx.fillStyle = cloud;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawTerminator(ctx, cx, cy, r, sunDir, inEclipse) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(sunDir);
+            const night = ctx.createLinearGradient(-r, 0, r, 0);
+            const nightAlpha = inEclipse ? 0.88 : 0.78;
+            night.addColorStop(0, `rgba(1, 4, 12, ${nightAlpha})`);
+            night.addColorStop(0.42, `rgba(2, 6, 16, ${nightAlpha * 0.55})`);
+            night.addColorStop(0.5, 'rgba(2, 6, 16, 0)');
+            night.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = night;
+            ctx.fillRect(-r, -r, r * 2, r * 2);
+
+            ctx.beginPath();
+            ctx.moveTo(0, -r);
+            ctx.lineTo(0, r);
+            ctx.strokeStyle = inEclipse ? 'rgba(245, 158, 11, 0.45)' : 'rgba(125, 211, 252, 0.28)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 6]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        function drawSun(ctx, x, y, t, sunAngle) {
+            const pulse = 1 + 0.06 * Math.sin(t * 2.2);
+            const glow = ctx.createRadialGradient(x, y, 0, x, y, 46 * pulse);
+            glow.addColorStop(0, 'rgba(251, 191, 36, 0.45)');
+            glow.addColorStop(0.4, 'rgba(245, 158, 11, 0.18)');
+            glow.addColorStop(1, 'rgba(245, 158, 11, 0)');
+            ctx.beginPath();
+            ctx.arc(x, y, 46 * pulse, 0, 2 * Math.PI);
+            ctx.fillStyle = glow;
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(x, y, 13, 0, 2 * Math.PI);
+            const core = ctx.createRadialGradient(x - 4, y - 4, 1, x, y, 13);
+            core.addColorStop(0, '#fef9c3');
+            core.addColorStop(0.5, '#fbbf24');
+            core.addColorStop(1, '#f59e0b');
+            ctx.fillStyle = core;
+            ctx.shadowColor = 'rgba(251, 191, 36, 0.9)';
+            ctx.shadowBlur = 24;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.font = '9px JetBrains Mono';
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.85)';
+            ctx.textAlign = 'center';
+            ctx.fillText(`SUN ${sunAngle.toFixed(0)}°`, x, y + 28);
+        }
+
+        function drawSunGlareCone(ctx, cx, cy, orbitRadius, sunAngle) {
+            if (!state.spacecraft || sunAngle >= 25) return;
+            const scAngle = degToRad(state.spacecraft.orbital_phase_deg - 90);
+            const scX = cx + Math.cos(scAngle) * orbitRadius;
+            const scY = cy + Math.sin(scAngle) * orbitRadius;
+            const coneAngle = degToRad(25);
+            const reach = orbitRadius * 1.5;
+
+            ctx.beginPath();
+            ctx.moveTo(scX, scY);
+            ctx.lineTo(scX + Math.cos(scAngle - coneAngle) * reach, scY + Math.sin(scAngle - coneAngle) * reach);
+            ctx.lineTo(scX + Math.cos(scAngle + coneAngle) * reach, scY + Math.sin(scAngle + coneAngle) * reach);
+            ctx.closePath();
+            const glare = ctx.createRadialGradient(scX, scY, 0, scX, scY, reach);
+            glare.addColorStop(0, 'rgba(245, 158, 11, 0.22)');
+            glare.addColorStop(1, 'rgba(245, 158, 11, 0)');
+            ctx.fillStyle = glare;
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(245, 158, 11, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawAttitudeVector(ctx, x, y, scAngle) {
+            const velAngle = scAngle + Math.PI / 2;
+            const len = 38;
+            const tipX = x + Math.cos(velAngle) * len;
+            const tipY = y + Math.sin(velAngle) * len;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(tipX, tipY);
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.65)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 4]);
+            ctx.shadowColor = 'rgba(16, 185, 129, 0.6)';
+            ctx.shadowBlur = 6;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(tipX - Math.cos(velAngle - 0.35) * 8, tipY - Math.sin(velAngle - 0.35) * 8);
+            ctx.moveTo(tipX, tipY);
+            ctx.lineTo(tipX - Math.cos(velAngle + 0.35) * 8, tipY - Math.sin(velAngle + 0.35) * 8);
+            ctx.strokeStyle = 'rgba(52, 211, 153, 0.85)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawSpacecraft(ctx, x, y, rotation, t) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+
+            const wingGrad = ctx.createLinearGradient(-24, 0, 24, 0);
+            wingGrad.addColorStop(0, 'rgba(30, 64, 175, 0.95)');
+            wingGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.95)');
+            wingGrad.addColorStop(1, 'rgba(30, 64, 175, 0.95)');
+
+            [-1, 1].forEach((side) => {
+                ctx.fillStyle = wingGrad;
+                ctx.fillRect(side > 0 ? 8 : -24, -4, 16, 8);
+                ctx.strokeStyle = 'rgba(224, 242, 254, 0.55)';
+                ctx.lineWidth = 0.6;
+                for (let i = 1; i < 4; i++) {
+                    const wx = (side > 0 ? 8 : -24) + i * 4;
+                    ctx.beginPath();
+                    ctx.moveTo(wx, -4);
+                    ctx.lineTo(wx, 4);
+                    ctx.stroke();
+                }
+                ctx.beginPath();
+                ctx.moveTo(side > 0 ? 8 : -24, 0);
+                ctx.lineTo(side > 0 ? 24 : -8, 0);
+                ctx.stroke();
+                ctx.strokeRect(side > 0 ? 8 : -24, -4, 16, 8);
+            });
+
+            ctx.beginPath();
+            roundRect(ctx, -7, -6, 14, 12, 2.5);
+            const body = ctx.createLinearGradient(0, -6, 0, 6);
+            body.addColorStop(0, '#F8FAFC');
+            body.addColorStop(0.5, '#E0F2FE');
+            body.addColorStop(1, '#94A3B8');
+            ctx.fillStyle = body;
+            ctx.shadowColor = 'rgba(52, 211, 153, 0.85)';
+            ctx.shadowBlur = 12;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = 'rgba(16, 185, 129, 0.9)';
+            ctx.fillRect(-4, -3, 8, 2);
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.7)';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(0, -11);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(0, -12, 2.2, 0, 2 * Math.PI);
+            ctx.fillStyle = 'rgba(34, 211, 238, 0.95)';
+            ctx.shadowColor = 'rgba(34, 211, 238, 0.9)';
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.beginPath();
+            ctx.moveTo(-5, 6);
+            ctx.lineTo(5, 6);
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawTelemetryCallout(ctx, x, y, scAngle) {
+            const alt = state.spacecraft?.altitude_km ?? 0;
+            const vel = orbitalVelocityKms(alt);
+            const label = `ALT ${alt.toFixed(0)} km`;
+            const velLabel = `VEL ~${vel.toFixed(2)} km/s`;
+
+            ctx.save();
+            ctx.font = '9px JetBrains Mono';
+            const w = Math.max(ctx.measureText(label).width, ctx.measureText(velLabel).width) + 14;
+            const h = 28;
+            const outward = scAngle + Math.PI;
+            const boxX = x + Math.cos(outward) * 46 - w / 2;
+            const boxY = y + Math.sin(outward) * 46 - h / 2;
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(boxX + w / 2, boxY + (boxY > y ? 0 : h));
+            ctx.strokeStyle = 'rgba(224, 242, 254, 0.45)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            roundRect(ctx, boxX, boxY, w, h, 5);
+            ctx.fillStyle = 'rgba(3, 7, 18, 0.72)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(224, 242, 254, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#E0F2FE';
+            ctx.fillText(label, boxX + w / 2, boxY + 12);
+            ctx.fillStyle = 'rgba(52, 211, 153, 0.95)';
+            ctx.fillText(velLabel, boxX + w / 2, boxY + 23);
+            ctx.restore();
+        }
+
+        function spawnIonParticles(scX, scY, thrusterDir, dt) {
+            const dir = degToRad(thrusterDir) + Math.PI;
+            const count = Math.max(1, Math.round(28 * dt));
+            for (let i = 0; i < count; i++) {
+                const spread = (pseudoRandom(state.particles.length * 3.7 + performance.now() * 0.001) - 0.5) * 0.7;
+                const speed = 45 + pseudoRandom(state.particles.length * 5.1 + 7) * 70;
+                state.particles.push({
+                    x: scX + Math.cos(dir + spread) * 8,
+                    y: scY + Math.sin(dir + spread) * 8,
+                    vx: Math.cos(dir + spread) * speed,
+                    vy: Math.sin(dir + spread) * speed,
+                    life: 0.55 + pseudoRandom(i * 9.1) * 0.5,
+                    maxLife: 1.05,
+                    size: 1.1 + pseudoRandom(i * 4.3) * 1.8,
+                });
+            }
+        }
+
+        function drawIonPlume(ctx, dt, t) {
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                const p = state.particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.vx *= 0.94;
+                p.vy *= 0.94;
+                p.life -= dt;
+                if (p.life <= 0) {
+                    state.particles.splice(i, 1);
+                    continue;
+                }
+                const ratio = clamp(p.life / p.maxLife, 0, 1);
+                const alpha = ratio * 0.85;
+                const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 4.5);
+                grad.addColorStop(0, `rgba(248, 250, 252, ${alpha.toFixed(3)})`);
+                grad.addColorStop(0.35, `rgba(34, 211, 238, ${(alpha * 0.7).toFixed(3)})`);
+                grad.addColorStop(1, 'rgba(34, 211, 238, 0)');
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * 4.5, 0, 2 * Math.PI);
+                ctx.fillStyle = grad;
+                ctx.fill();
+            }
+        }
+
+        function drawDebris(ctx, x, y, debris, angle, t) {
+            const spin = t * 1.6;
+            const lockPhase = (t * 0.9) % 1;
+
+            ctx.save();
+            ctx.translate(x, y);
+
+            ctx.beginPath();
+            ctx.arc(0, 0, 14 + lockPhase * 30, 0, 2 * Math.PI);
+            ctx.strokeStyle = `rgba(239, 68, 68, ${(0.55 * (1 - lockPhase)).toFixed(3)})`;
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, 18 + ((lockPhase + 0.5) % 1) * 26, 0, 2 * Math.PI);
+            ctx.strokeStyle = `rgba(239, 68, 68, ${(0.3 * (1 - ((lockPhase + 0.5) % 1))).toFixed(3)})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.save();
+            ctx.rotate(spin);
+            ctx.beginPath();
+            ctx.moveTo(0, -11);
+            ctx.lineTo(8, 0);
+            ctx.lineTo(0, 11);
+            ctx.lineTo(-8, 0);
+            ctx.closePath();
+            ctx.strokeStyle = 'rgba(248, 113, 113, 0.95)';
+            ctx.lineWidth = 1.6;
+            ctx.shadowColor = 'rgba(239, 68, 68, 0.9)';
+            ctx.shadowBlur = 12;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            ctx.beginPath();
+            ctx.moveTo(-8, 0);
+            ctx.lineTo(8, 0);
+            ctx.moveTo(0, -11);
+            ctx.lineTo(0, 11);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.55)';
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            ctx.restore();
+
+            const tca = Math.max(0, debris.time_to_closest_approach_s);
+            ctx.font = 'bold 8px JetBrains Mono';
+            ctx.fillStyle = '#F8FAFC';
+            ctx.textAlign = 'center';
+            ctx.fillText(debris.object_id, 0, -24);
+            ctx.font = '8px JetBrains Mono';
+            ctx.fillStyle = 'rgba(248, 113, 113, 0.95)';
+            ctx.fillText(`TCA ${Math.floor(tca / 60)}:${String(Math.floor(tca % 60)).padStart(2, '0')}`, 0, -14);
+            ctx.fillStyle = 'rgba(224, 242, 254, 0.8)';
+            ctx.fillText(`${debris.relative_distance_km.toFixed(1)} km`, 0, 24);
+            ctx.fillStyle = 'rgba(248, 113, 113, 0.85)';
+            ctx.fillText(`Pc ${debris.collision_probability.toExponential(1)}`, 0, 34);
+
+            ctx.restore();
+        }
+
+        function drawInterceptTrajectory(ctx, dx, dy, sx, sy, t) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(dx, dy);
+            ctx.lineTo(sx, sy);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.65)';
+            ctx.lineWidth = 1.6;
+            ctx.setLineDash([8, 6]);
+            ctx.lineDashOffset = -(t * 22) % 14;
+            ctx.shadowColor = 'rgba(239, 68, 68, 0.5)';
+            ctx.shadowBlur = 6;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.shadowBlur = 0;
+
+            const vecAngle = Math.atan2(sy - dy, sx - dx);
+            const arrowLen = 13;
+            ctx.beginPath();
+            ctx.moveTo(sx - Math.cos(vecAngle - 0.35) * arrowLen, sy - Math.sin(vecAngle - 0.35) * arrowLen);
+            ctx.lineTo(sx, sy);
+            ctx.lineTo(sx - Math.cos(vecAngle + 0.35) * arrowLen, sy - Math.sin(vecAngle + 0.35) * arrowLen);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawPhaseMarkers(ctx, cx, cy, r) {
+            const markers = [
+                { deg: 0, label: '0°' }, { deg: 90, label: '90°' },
+                { deg: ECLIPSE_START_DEG, label: '115°' }, { deg: 180, label: '180°' },
+                { deg: ECLIPSE_END_DEG, label: '245°' }, { deg: 270, label: '270°' },
+            ];
+            markers.forEach(m => {
+                const a = degToRad(m.deg - 90);
+                const x1 = cx + Math.cos(a) * (r + 11);
+                const y1 = cy + Math.sin(a) * (r + 11);
+                const x2 = cx + Math.cos(a) * (r + 21);
+                const y2 = cy + Math.sin(a) * (r + 21);
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = m.deg >= ECLIPSE_START_DEG && m.deg <= ECLIPSE_END_DEG ? 'rgba(245, 158, 11, 0.6)' : 'rgba(224, 242, 254, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.font = '8px JetBrains Mono';
+                ctx.fillStyle = m.deg >= ECLIPSE_START_DEG && m.deg <= ECLIPSE_END_DEG ? '#fbbf24' : 'rgba(224, 242, 254, 0.65)';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(m.label, x2, y2);
+            });
+        }
+
+        // ========== WEBSOCKET ==========
+        function connectWS() {
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const url = `${proto}//${window.location.host}/ws/telemetry`;
+            state.ws = new WebSocket(url);
+
+            state.ws.onopen = () => { setConnectionStatus(true); };
+            state.ws.onmessage = (event) => {
+                try { handleTelemetry(JSON.parse(event.data)); }
+                catch (e) { console.error('[WS] Parse error:', e); }
+            };
+            state.ws.onclose = () => {
+                setConnectionStatus(false);
+                setTimeout(connectWS, 3000);
+            };
+            state.ws.onerror = (err) => console.error('[WS] Error:', err);
+        }
+
+        function handleTelemetry(msg) {
+            if (msg.type !== 'telemetry') return;
+            state.spacecraft = msg.state;
+            state.logs = msg.logs || [];
+            state.stats = msg.stats || state.stats;
+            state.thrusterActive = msg.thruster?.active || false;
+            state.thrusterDirection = msg.thruster?.direction || 0;
+            state.autoPlannerEnabled = msg.auto_planner || false;
+            state.debrisActive = state.spacecraft.tracked_debris?.length > 0;
+            updateHUD();
+            updateAuditLog();
+        }
+
+        function updateHUD() {
+            if (!state.spacecraft) return;
+            const s = state.spacecraft;
+
+            const bat = s.battery_soc;
+            els.miniBattery.textContent = `${bat.toFixed(1)}%`;
+            els.miniBattery.className = 'mini-value ' + (bat < 30 ? 'warn' : bat < 50 ? 'caution' : 'nominal');
+
+            const temp = s.bus_temp_c;
+            els.miniTemp.textContent = `${temp.toFixed(1)}°C`;
+            els.miniTemp.className = 'mini-value ' + (temp > 65 ? 'warn' : temp > 50 ? 'caution' : 'info');
+
+            const prop = s.propellant_kg;
+            els.miniPropellant.textContent = `${prop.toFixed(1)} kg`;
+            els.miniPropellant.className = 'mini-value ' + (prop < 10 ? 'warn' : 'info');
+
+            const sun = s.sun_angle_deg;
+            els.miniSun.textContent = `${sun.toFixed(1)}°`;
+            els.miniSun.className = 'mini-value ' + (sun < 25 ? 'warn' : sun < 45 ? 'caution' : 'nominal');
+
+            if (s.in_eclipse) {
+                els.badgeEclipse.textContent = 'IN ECLIPSE';
+                els.badgeEclipse.className = 'overlay-badge badge-top-left badge-eclipse';
+            } else {
+                els.badgeEclipse.textContent = 'SUNLIT';
+                els.badgeEclipse.className = 'overlay-badge badge-top-left badge-sunlit';
+            }
+            els.badgePhase.textContent = `PHASE: ${s.orbital_phase_deg.toFixed(1)}°`;
+            els.badgeAlt.textContent = `ALT: ${s.altitude_km.toFixed(0)} km`;
+            els.badgePointing.textContent = `POINTING: ${s.pointing_mode}`;
+
+            if (state.liveIss) {
+                els.badgeLive.style.display = 'block';
+                els.badgeLive.textContent = `LIVE ISS · ${state.liveIss.source.toUpperCase()} · ${new Date(state.liveIss.syncedAt).toLocaleTimeString('en-US', { hour12: false })}`;
+            } else {
+                els.badgeLive.style.display = 'none';
+            }
+
+            if (state.debrisActive && s.tracked_debris?.length > 0) {
+                const tca = Math.max(0, Math.floor(s.tracked_debris[0].time_to_closest_approach_s));
+                els.tcaValue.textContent = tca;
+                els.badgeTCA.style.display = 'block';
+            } else {
+                els.badgeTCA.style.display = 'none';
+            }
+
+            els.autoPlannerToggle.checked = state.autoPlannerEnabled;
+            els.autoPlannerStatus.textContent = state.autoPlannerEnabled ? 'ACTIVE' : 'DISABLED';
+            els.autoPlannerStatus.style.color = state.autoPlannerEnabled ? 'var(--emerald-400)' : 'var(--gray-400)';
+        }
+
+        function updateAuditLog() {
+            els.logCount.textContent = `${state.logs.length} entries`;
+            if (state.logs.length === 0) {
+                els.auditLog.innerHTML = '<div style="text-align:center;color:#E0F2FE;opacity:0.45;padding:20px;font-size:10px;">Awaiting decisions...</div>';
+                return;
+            }
+            els.auditLog.innerHTML = state.logs.map(log => {
+                const isEvent = log.cmd_type === 'LIVE_ISS_SYNC';
+                const approved = log.approved === 1;
+                const time = new Date(log.timestamp_utc).toLocaleTimeString('en-US', { hour12: false });
+                const vetoBadge = log.veto_code ? `<span class="audit-veto">${log.veto_code}</span>` : '';
+                const autoBadge = log.issued_by === 'autonomous_planner' ? '<span class="audit-auto">AUTO</span>' : '';
+                const liveBadge = isEvent ? '<span class="audit-auto">LIVE</span>' : '';
+                const status = isEvent
+                    ? '<span class="audit-status ev">◈ SYNCED</span>'
+                    : `<span class="audit-status ${approved ? 'ok' : 'no'}">${approved ? '✓ APPROVED' : '✗ VETOED'}</span>`;
+                const cls = isEvent ? 'event' : approved ? 'approved' : 'vetoed';
+                return `
+                    <div class="audit-entry ${cls} ${log.issued_by === 'autonomous_planner' ? 'auto' : ''}">
+                        <div class="audit-top">
+                            <span class="audit-time">${time}</span>
+                            ${status}
+                        </div>
+                        <div class="audit-mid">
+                            <span class="audit-cmd">${log.cmd_type}</span>
+                            ${vetoBadge}
+                            ${autoBadge}
+                            ${liveBadge}
+                        </div>
+                        <div class="audit-reason">${log.reason}</div>
+                    </div>
+                `;
+            }).join('');
+            els.auditLog.scrollTop = 0;
+        }
+
+        // ========== COMMAND HANDLING ==========
+        async function sendCommand(cmd) {
+            try {
+                const res = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+                const result = await res.json();
+                showToast(result.approved ? 'ok' : 'err', result.reason, result.veto_code ? `VETO: ${result.veto_code}` : 'All safety checks passed');
+            } catch (e) { showToast('err', 'COMM ERROR', 'Failed to reach server'); }
+        }
+
+        async function injectScenario(name) {
+            try {
+                const res = await fetch(`/api/scenario/${name}`, { method: 'POST' });
+                const result = await res.json();
+                if (name === 'live_iss') {
+                    state.liveIss = { source: result.source || 'fallback', syncedAt: Date.now() };
+                    updateHUD();
+                    const iss = result.iss || {};
+                    showToast(
+                        'info',
+                        `LIVE ISS SYNC · ${(result.source || 'fallback').toUpperCase()}`,
+                        `ALT ${Number(result.altitude_km ?? iss.altitude ?? 0).toFixed(1)} km · PHASE ${Number(result.orbital_phase_deg ?? 0).toFixed(1)}° · ${result.in_eclipse ? 'ECLIPSED' : 'SUNLIT'}`
+                    );
+                } else {
+                    showToast('info', `SCENARIO: ${name.toUpperCase()}`, '');
+                }
+            } catch (e) { showToast('err', 'SCENARIO FAILED', 'Failed to reach server'); }
+        }
+
+        async function toggleAutoPlanner(enabled) {
+            try {
+                await fetch('/api/auto-planner', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+            } catch (e) { els.autoPlannerToggle.checked = !enabled; }
+        }
+
+        function setupEventListeners() {
+            document.getElementById('sc-debris').onclick = () => injectScenario('debris_threat');
+            document.getElementById('sc-eclipse').onclick = () => injectScenario('eclipse_low_battery');
+            document.getElementById('sc-sun-glare').onclick = () => injectScenario('sun_glare');
+            document.getElementById('sc-reset').onclick = () => injectScenario('reset');
+            document.getElementById('sc-live-iss').onclick = () => injectScenario('live_iss');
+            document.querySelectorAll('.cmd-btn').forEach(btn => btn.onclick = () => sendCommand(JSON.parse(btn.dataset.cmd)));
+            els.autoPlannerToggle.onchange = (e) => toggleAutoPlanner(e.target.checked);
+        }
+
+        // ========== INIT ==========
+        function init() { initCanvas(); connectWS(); setupEventListeners(); }
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+        else init();
+    </script>
+</body>
+</html>
