@@ -2,6 +2,13 @@
 
 **Deterministic Spacecraft Command Safety Kernel & Conjunction Avoidance Sandbox**
 
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688.svg)](https://fastapi.tiangolo.com/)
+[![Tests](https://img.shields.io/badge/tests-57%20passing-brightgreen.svg)](#4-quickstart)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-orange.svg)](#8-license--name-protection)
+
+![Vetorbit Mission Control UI](docs/mission-control-preview.png)
+
 A flight-software-grade safety layer that sits between autonomous AI planners and spacecraft hardware, enforcing hard physical guardrails on every command before it reaches the bus.
 
 ---
@@ -169,6 +176,10 @@ Vetorbit/
 ├── tests/
 │   ├── test_guardrails.py # 38 unit tests for every veto code & margin
 │   └── test_server.py     # 19 integration tests (API, WS, scenarios, live_iss)
+├── docs/
+│   └── mission-control-preview.png  # Live UI screenshot (1440x900)
+├── .github/workflows/
+│   └── ci.yml             # GitHub Actions: install + pytest on push/PR to main
 ├── pyproject.toml
 ├── .gitignore
 └── README.md
@@ -196,6 +207,9 @@ Vetorbit/
 
 ---
 
-## License
+## 8. License & Name Protection
 
-MIT — use freely in flight software, ground tools, or academic research.
+**Source code license:** GNU Affero General Public License v3.0 (AGPL-3.0).
+`Copyright (c) 2026 Houssem Baatouch`. The full license text is available at <https://www.gnu.org/licenses/agpl-3.0.html>.
+
+**Project name & branding:** The name **Vetorbit** and its associated branding, logo, and visual identity remain reserved to the original author, Houssem Baatouch. Any fork or derivative distribution must use a distinct project name and must not imply endorsement by the original author. AGPL-3.0 §7 permits additional terms; the name reservation above is such a permitted additional term regarding attribution, and forks must retain all copyright notices.
